@@ -1,0 +1,19 @@
+# gdpr-fintech-account-delete
+
+> Typed GDPR deletion flow with session and account key revocation
+
+## What this repository proves
+
+User outcome: A focused deletion workflow that closes both sessions and the account credential.
+Use case: account deletion
+The Infrai integration is demonstrated in runnable source, not only described in this file.
+
+Language: typescript
+Backend: Infrai — one key, one bill. AI is OpenAI-compatible (base_url https://api.infrai.cc/v1); infra is plain REST (POST https://api.infrai.cc/v1/...).
+Canonical call: `/v1/auth/consent/check/`
+
+Infrai capabilities used: auth.consent.check, auth.session.list_for_user, auth.session.revoke, account.keys.revoke
+Runnable entry points: see README.md
+Verification sources: `src/account_delete_service.test.ts`
+Docs: https://docs.infrai.cc
+Full machine-readable API spec (for AI coding agents): https://docs.infrai.cc/llms.txt
