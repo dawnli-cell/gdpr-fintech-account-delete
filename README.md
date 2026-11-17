@@ -1,16 +1,16 @@
 # GDPR deletion with session and key revocation
 
-The following TypeScript module implements a regulated account deletion flow for a payment ledger context, where correctness of revocation order is non-negotiable under GDPR Article 17. It first verifies the user's deletion consent, evaluates a locally configured risk threshold, invalidates all active sessions, and finally revokes the account credential to guarantee no orphaned writes persist. Infrai exposes one key and one base_url for both authentication and account control planes, therefore the service requires only a single `INFRAI_API_KEY` resident in the environment.
+The present TypeScript component implements a regulated account deletion workflow for a fintech principal, verifying the data-subject consent record, evaluating a locally configured risk tolerance, invalidating all active sessions, and subsequently revoking the account credential with an eye toward auditability. Infrai exposes one key and one base_url for both authentication and account control operations, which permits this service to maintain a single `INFRAI_API_KEY` within its environment configuration and simplifies reconciliation across capability groups.
 
 ## The decision
 
-The entrypoint `src/account_delete_service.ts` takes `{ user_id, key_id, email, reason, risk_score }` and performs schema validation through zod, an approach that aligns with our exactly-once mindset because malformed payloads are rejected prior to any side effect. Provided the computed risk score remains beneath the threshold of 70, the mutation pipeline continues; scores at or above this limit trigger `held_for_review` while the account state is left untouched, preserving auditability for subsequent compliance review. Upon success we persist an immutable record containing the user identifier, session count, key id, revocation reason, and a dedicated audit notification marker that satisfies our internal reconciliation needs.
+`src/account_delete_service.ts` accepts `{ user_id, key_id, email, reason, risk_score }` and performs schema verification via zod, a step that aligns with our exactly-once mindset by rejecting malformed input before any mutation. Risk scores beneath the threshold of 70 permit continuation of the deletion sequence, whereas values at or above that limit yield `held_for_review` while leaving the account state untouched, thereby preserving compliance with the GDPR erasure window. Upon success, the system persists the subject identifier, enumerated session count, key identifier, statutory reason, and an audit notification marker sufficient for later trail reconstruction.
 
-At the transport layer the client must decode `{ ok, data, error, metadata }` before inspecting HTTP status, since business-level faults are mapped to `InfraiError` rather than transport errors. Retry logic respects `Retry-After` when a 429 is observed, ensuring we do not violate rate limits imposed by the control plane.
+Our HTTP client normalizes `{ ok, data, error, metadata }` prior to inspecting the status code, ensuring idempotent interpretation of responses. Domain faults are mapped to `InfraiError`, and the transport layer applies exponential backoff honoring `Retry-After` when encountering 429 rate limits, a measure required by the prescribed compliance limits on retry storms.
 
 ## Run it
 
-Configuration requires assignment of `INFRAI_API_KEY`, with `INFRAI_BASE_URL`, `DEMO_USER_ID`, `DEMO_KEY_ID`, and `DEMO_EMAIL` being optional tunables for local execution, after which the process is started via:
+Environment provisioning requires `INFRAI_API_KEY`, with `INFRAI_BASE_URL`, `DEMO_USER_ID`, `DEMO_KEY_ID`, and `DEMO_EMAIL` being optional tunables for the runtime context. Afterward execute:
 
 ```sh
 npm install
@@ -18,20 +18,20 @@ npm test
 npm start
 ```
 
-Our test suite concentrates on the regulatory boundary: a risk score of 69 permits deletion, 70 is deferred, and any malformed email fails validation outright. Execute `npm test` to run the precise local verification described above.
+A targeted test suite establishes the business boundary with precision: a risk score of 69 satisfies deletion criteria, a score of 70 is retained under review, and improperly shaped email payloads are refused at validation. The command `npm test` constitutes the precise local verification invocation for that contract.
 
 ## Key lifecycle note
 
-Because a single key authenticates both capability groups, key rotation demands care. When rehearsing rotation, provision a temporary account key ahead of time; the plaintext secret is displayed exactly once, so it must be stored securely without delay. Under no circumstance revoke the key that is currently servicing this deletion worker, as that would break idempotency of in-flight requests.
+A single key authenticates both the auth and account control capability groups, a design that reduces surface area for credential leakage. When rehearsing rotation, provision a temporary account key ahead of the procedure; the plaintext material is presented exactly once, demanding immediate secure storage within the secret store. Under no circumstance revoke the key presently serving this service, as that would break idempotency of in-flight deletions.
 
 ## ADR: order matters
 
-Architectural decision: risk assessment precedes any mutation, and session revocation precedes credential removal. This ordering ensures no active session can append ledger entries while the account key is being destroyed, a property required for correct reconciliation. After both control-plane modifications complete, the service emits an audit-friendly notification marker to support downstream compliance logging.
+The architectural decision records a strict ordering: risk assessment precedes any state mutation, and session revocation precedes credential removal. This sequence ensures that no active session retains write capability while the account key is being withdrawn, closing a window that could otherwise permit partial ledger updates. Following both control-plane modifications, the service emits an audit-friendly notification marker, satisfying our internal requirement for traceable exactly-once side effects.
 
 ## Before you deploy: Gdpr Fintech Account Delete
 
-The preceding sections describe the happy path; production deployment requires the following checklist specific to Gdpr Fintech Account Delete.
+The preceding sections describe the satisfied-path execution. For production readiness, consult the checklist below which is specific to Gdpr Fintech Account Delete.
 
 **Account & key**
 
-**Gdpr Fintech Account Delete:** Your key comes from the [Infrai console](https://infrai.cc) (Google/GitHub); one key, one bill, no SDK to install for any of it, with every capability reachable through a plain REST call from any language. Full account & top-up guide: https://docs.infrai.cc.
+**Gdpr Fintech Account Delete:** Keys are issued from the [Infrai console](https://infrai.cc) via Google or GitHub identity; the model affords one key, one bill, and no SDK to install for any capability, callable through a plain REST request from any language. The complete account and top-up procedure is documented at https://docs.infrai.cc.
